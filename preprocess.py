@@ -33,8 +33,11 @@ def preprocess(network_name):
     graph = nx.Graph()
     graph.add_nodes_from(nodes)
 
+    link_names = []
     for src, dest in links:
         graph.add_edge(src, dest)
+        link_names.append(f'{src}_{dest}')
+        link_names.append(f'{dest}_{src}')
 
     file_list = glob.glob(f'data/{network_name}/*.txt')
     file_list.sort()
@@ -56,13 +59,15 @@ def preprocess(network_name):
         for src, dest, demand in demands:
             demand = float(demand)
             path = nx.shortest_path(graph, source=src, target=dest)
-            # print(f'\n{src}, {dest}')
-            for node in path:
-                # print(node, end=' ')
-                node_traffic[node] += demand
+            # for node in path:
+            #     node_traffic[node] += demand
+            num_hop = len(path)
+            for i in range(num_hop - 1):
+                node_traffic[f'{path[i]}_{path[i+1]}'] += demand
 
         # Add the traffic data as a row, filling missing nodes with 0 traffic
-        row = {node: node_traffic[node] for node in nodes}
+        # row = {node: node_traffic[node] for node in nodes}
+        row = {link_name: node_traffic[link_name] for link_name in link_names}
         rows.append(row)
         times.append(_time)
 
