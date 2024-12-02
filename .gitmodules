@@ -1,0 +1,3 @@
+[submodule "models/MegaCRN"]
+	path = models/MegaCRN
+	url = git@github.com:jaesung8/MegaCRN.git

@@ -27,9 +27,6 @@ def preprocess(network_name):
     
     nodes = re.findall(r"([a-zA-Z0-9.]+)\s+\(\s+[-\d.]+\s+[-\d.]+\s+\)", nodes_content)
     links = re.findall(r"\(\s+([a-zA-Z0-9.]+)\s+([a-zA-Z0-9.]+)\s+\)\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\(\s+[\d.]+\s+[\d.]+\s+\)", links_content)
-    
-    
-    
     # r"([A-Z]+\w+_[A-Z]+\w+\s+\(\s+[A-Z]+\w+\s+[A-Z]+\w+\s+\)\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\(\s+[\d.]+\s+[\d.]+\s+\)$"
     print(len(nodes), len(links))
     # Initialize graph and populate
