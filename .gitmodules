@@ -1,3 +1,9 @@
 [submodule "models/MegaCRN"]
 	path = models/MegaCRN
 	url = git@github.com:jaesung8/MegaCRN.git
+[submodule "models/STD-MAE"]
+	path = models/STD-MAE
+	url = git@github.com:jaesung8/STD-MAE.git
+[submodule "models/DCRNN_PyTorch"]
+	path = models/DCRNN_PyTorch
+	url = git@github.com:jaesung8/DCRNN_PyTorch.git
