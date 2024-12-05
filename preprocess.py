@@ -4,9 +4,23 @@ from datetime import datetime
 import os
 from collections import defaultdict
 import re
+import math
+from itertools import combinations
+import pickle
 
 import networkx as nx
 import pandas as pd
+
+
+def haversine(lat1, lon1, lat2, lon2):
+    """Calculate the great-circle distance between two points on the Earth."""
+    R = 6371  # Earth's radius in kilometers
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat / 2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    return R * c
 
 
 def preprocess(network_name):
@@ -25,21 +39,31 @@ def preprocess(network_name):
     nodes_content = nodes_match.group(1).strip() if nodes_match else None
     links_content = links_match.group(1).strip() if links_match else None
     
-    nodes = re.findall(r"([a-zA-Z0-9.]+)\s+\(\s+[-\d.]+\s+[-\d.]+\s+\)", nodes_content)
+    nodes = re.findall(r"([a-zA-Z0-9.]+)\s+\(\s+([-?\d.]+)\s+([-?\d.]+)\s+\)", nodes_content)
+    node_coords = {node: (float(lat), float(lon)) for node, lat, lon in nodes}
+
     links = re.findall(r"\(\s+([a-zA-Z0-9.]+)\s+([a-zA-Z0-9.]+)\s+\)\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\(\s+[\d.]+\s+[\d.]+\s+\)", links_content)
-    # r"([A-Z]+\w+_[A-Z]+\w+\s+\(\s+[A-Z]+\w+\s+[A-Z]+\w+\s+\)\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+\(\s+[\d.]+\s+[\d.]+\s+\)$"
+
     print(len(nodes), len(links))
     # Initialize graph and populate
     graph = nx.Graph()
+    transformed_graph = nx.Graph()
     graph.add_nodes_from(nodes)
 
-    link_names = []
     for src, dest in links:
-        graph.add_edge(src, dest)
-        link_names.append(f'{src}_{dest}')
-        link_names.append(f'{dest}_{src}')
+        distance = haversine(*node_coords[src], *node_coords[dest])
+        graph.add_edge(src, dest, weight=distance)
+        transformed_graph.add_node(f'{src}_{dest}')
+        transformed_graph.add_node(f'{dest}_{src}')
 
-    file_list = glob.glob(f'data/{network_name}/*.txt')
+    for edge1, edge2 in combinations(graph.edges(data=False), 2):
+        shared_node = set(edge1) & set(edge2)
+        if shared_node:
+            mean_distance = (graph[edge1[0]][edge1[1]]['weight'] + graph[edge2[0]][edge2[1]]['weight']) / 2
+            transformed_graph.add_edge(f"{edge1[0]}_{edge1[1]}", f"{edge2[0]}_{edge2[1]}", weight=mean_distance)
+            transformed_graph.add_edge(f"{edge1[1]}_{edge1[0]}", f"{edge2[1]}_{edge2[0]}", weight=mean_distance)
+
+    file_list = glob.glob(f'data/{network_name}_raw/*.txt')
     file_list.sort()
     rows, times = [], []
     print(len(file_list))
@@ -67,7 +91,7 @@ def preprocess(network_name):
 
         # Add the traffic data as a row, filling missing nodes with 0 traffic
         # row = {node: node_traffic[node] for node in nodes}
-        row = {link_name: node_traffic[link_name] for link_name in link_names}
+        row = {link_name: node_traffic[link_name] for link_name in transformed_graph.nodes}
         rows.append(row)
         times.append(_time)
 
@@ -76,6 +100,12 @@ def preprocess(network_name):
     traffic_df.index.name = "Datetime"
     print(traffic_df)
     traffic_df.to_csv(f"data/{network_name}_traffic.csv")
+
+    print(transformed_graph.nodes)
+    with open(f'data/{network_name}_adj.pkl', "wb") as f:
+        pickle.dump(nx.to_numpy_array(transformed_graph, weight=None), f)
+    with open(f'data/{network_name}_distance.pkl', "wb") as f:
+        pickle.dump(nx.to_numpy_array(transformed_graph, weight='weight'), f)
 
 
 def parse_filename_to_datetime(filename):
