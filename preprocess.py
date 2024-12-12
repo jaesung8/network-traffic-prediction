@@ -10,6 +10,7 @@ import pickle
 
 import networkx as nx
 import pandas as pd
+import numpy as np
 
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -66,7 +67,8 @@ def preprocess(network_name):
     file_list = glob.glob(f'data/{network_name}_raw/*.txt')
     file_list.sort()
     rows, times = [], []
-    print(len(file_list))
+
+    count = 0
     for i, file_path in enumerate(file_list):
         _time = parse_filename_to_datetime(file_path)
 
@@ -78,6 +80,14 @@ def preprocess(network_name):
         demands_content = demands_match.group(1).strip() if demands_match else ''
 
         demands = re.findall(r"\(\s+([a-zA-Z0-9\.]+)\s+([a-zA-Z0-9\.]+)\s+\)\s+\d+\s+([\d.]+)\s+", demands_content)
+        if not demands:
+            continue
+
+        count += 1
+        if network_name == 'geant' and count == 2188:
+            print(file_path)
+            continue
+
         # Calculate traffic per node based on demands
         node_traffic = defaultdict(float)
         for src, dest, demand in demands:
@@ -101,12 +111,23 @@ def preprocess(network_name):
     print(traffic_df)
     traffic_df.to_csv(f"data/{network_name}_traffic.csv")
 
-    print(transformed_graph.nodes)
     with open(f'data/{network_name}_adj.pkl', "wb") as f:
         pickle.dump(nx.to_numpy_array(transformed_graph, weight=None), f)
     with open(f'data/{network_name}_distance.pkl', "wb") as f:
         pickle.dump(nx.to_numpy_array(transformed_graph, weight='weight'), f)
-
+    with open(f'data/{network_name}_norm_distance.pkl', "wb") as f:
+        dist_mx = nx.to_numpy_array(transformed_graph, weight='weight')
+        dist_mx = np.where(dist_mx == 0, np.inf, dist_mx)
+        distances = dist_mx[~np.isinf(dist_mx)].flatten()
+        std = distances.std()
+        adj_mx = np.exp(-np.square(dist_mx / std))
+        adj_mx[adj_mx < 0.1] = 0
+        sensor_ids = transformed_graph.nodes
+        num_sensors = len(sensor_ids)
+        sensor_id_to_ind = {}
+        for i, sensor_id in enumerate(sensor_ids):
+            sensor_id_to_ind[sensor_id] = i
+        pickle.dump([sensor_ids, sensor_id_to_ind, adj_mx], f)
 
 def parse_filename_to_datetime(filename):
     # Regular expression to capture the date and time components
