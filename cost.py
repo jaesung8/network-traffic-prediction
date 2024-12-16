@@ -50,8 +50,11 @@ def calculate_congestion_and_cost(models_predictions, ground_truth, module_capac
 
 
 def calculate_network_congestion_and_cost(models_predictions, ground_truth, module_capacity, module_cost):
-    max_predicted_traffic = np.max(np.array(models_predictions), axis=0)
-    required_modules = np.ceil(max_predicted_traffic / module_capacity).astype(int)
+    # max_predicted_traffic = np.max(np.array(models_predictions), axis=0)
+    # required_modules = np.ceil(max_predicted_traffic / module_capacity).astype(int)
+    print(models_predictions.shape)
+    required_modules = np.ceil(models_predictions / module_capacity).astype(int)
+    print(required_modules.shape)
     # print('required_modules', required_modules.shape)
     installed_capacity = required_modules * module_capacity
     # print('installed_capacity', installed_capacity.shape)
@@ -149,7 +152,7 @@ def plot_multi_yscale(data):
     # Plot total congestion events on the first y-axis
     ax1.set_xlabel('Methods')
     ax1.set_ylabel('Total Congestion Events', color='tab:red')
-    ax1.bar(methods, total_congestion_events, color='tab:red', alpha=0.6, label='Total Congestion Events')
+    ax1.bar(methods, total_congestion_events, color='tab:red', alpha=0.6, label='Total Congestion Events', width=0.4)
     ax1.tick_params(axis='y', labelcolor='tab:red')
 
     # Create a second y-axis for total cost
@@ -159,12 +162,12 @@ def plot_multi_yscale(data):
     ax2.tick_params(axis='y', labelcolor='tab:blue')
 
     # Create a third y-axis for total modules installed
-    # ax3 = ax1.twinx()
-    # # Offset the third y-axis to avoid overlap with the second y-axis
-    # ax3.spines['right'].set_position(('outward', 60))
-    # ax3.set_ylabel('Total Modules Installed', color='tab:green')
-    # ax3.plot(methods, total_modules_installed, color='tab:green', marker='s', label='Total Modules Installed')
-    # ax3.tick_params(axis='y', labelcolor='tab:green')
+    ax3 = ax1.twinx()
+    # Offset the third y-axis to avoid overlap with the second y-axis
+    ax3.spines['right'].set_position(('outward', 60))
+    ax3.set_ylabel('Total Modules Installed', color='tab:green')
+    ax3.plot(methods, total_modules_installed, color='tab:green', marker='s', label='Total Modules Installed')
+    ax3.tick_params(axis='y', labelcolor='tab:green')
 
     # Show the plot
     # plt.title('Comparison of Methods from Dictionary Data')
@@ -182,8 +185,8 @@ def main():
     geant_cost = np.array(geant)
     abilene_cost = np.array(abilene)
 
-    scale = 40000.0
-    # scale = 1.0
+    # scale = 40000.0
+    scale = 1.0
 
     module_capacity = 40000.0 / scale
     module_cost = {
@@ -195,27 +198,45 @@ def main():
     for dataset_name, models in data_dict.items():
         if dataset_name == 'abilene':
             step_index = 2
+            seq_len = 9501
+            timeoffset = 9500
         elif dataset_name == 'geant':
             step_index = 0
+            seq_len = 2101
+            timeoffset = 2100
 
         results_per_dataset = {}
         for model_name, model_predictions in models:
             if model_name == 'gt':
-                ground_truth = model_predictions[step_index]
+                ground_truth = model_predictions[step_index, -seq_len-10:-seq_len + timeoffset - 10]
 
         for model_name, model_predictions in models:
             if model_name in ['transformer', 'gt', 'arima', 'dcrnn']:
                 continue
+            
+
+            if model_name == 'stdmae':
+                time_series = model_predictions[step_index, -seq_len:-seq_len + timeoffset]
+            elif model_name == 'arima':
+                time_series = model_predictions[0, -seq_len:-seq_len + timeoffset]
+            else:
+                time_series = model_predictions[step_index, -seq_len-9:-seq_len + timeoffset-9]
+
             results_per_model = calculate_network_congestion_and_cost(
-                model_predictions[step_index], ground_truth, module_capacity, module_cost[dataset_name]
+                time_series, ground_truth, module_capacity, module_cost[dataset_name]
             )
+
+            #  results_per_model = calculate_network_congestion_and_cost(
+            #     model_predictions[step_index], ground_truth, module_capacity, module_cost[dataset_name]
+            # )
             results_per_dataset[model_name] = results_per_model
             # break
         results_dict[dataset_name] = results_per_dataset
 
     pprint.pprint(results_dict)
-    plot(results_dict, scale)
+    # plot(results_dict, scale)
     plot_multi_yscale(results_dict['geant'])
+    # plot_multi_yscale(results_dict['abilene'])
 
 
 
